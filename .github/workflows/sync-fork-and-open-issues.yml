@@ -80,16 +80,22 @@ jobs:
             
             if [ -z "$EXISTS" ]; then
               if [ "$OLD_TAG" = "NO_TAGS" ]; then
-                ISSUE_BODY="Initial sync for release **$NEW_TAG**. This file needs to be translated.\n\n[View file on GitHub](https://github.com/angular/angular/blob/$NEW_TAG/$FILE)"
+                ISSUE_BODY="Initial sync for release **$NEW_TAG**. This file needs to be translated.
+
+                [View file on GitHub](https://github.com/angular/angular/blob/$NEW_TAG/$FILE)"
               else
-                ISSUE_BODY="Release **$NEW_TAG** modified this file.\n\nCompare differences against $OLD_TAG and update Italian translation.\n\n[View changes on GitHub](https://github.com/angular/angular/compare/$OLD_TAG...$NEW_TAG)"
+                ISSUE_BODY="Release **$NEW_TAG** modified this file.
+
+                Compare differences against $OLD_TAG and update Italian translation.
+
+                [View changes on GitHub](https://github.com/angular/angular/compare/$OLD_TAG...$NEW_TAG)"
               fi
 
               gh issue create \
                 --repo "$GITHUB_REPOSITORY" \
                 --title "$ISSUE_TITLE" \
                 --body "$ISSUE_BODY" \
-                --label "documentation"
+                --label "documentation"|| echo "⚠️ Error during issue creation of file $FILE"
               
               echo "✅ Issue would be created for: $FILE"
 
