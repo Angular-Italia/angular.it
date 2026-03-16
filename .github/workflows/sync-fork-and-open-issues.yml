@@ -1,0 +1,101 @@
+name: Sync Upstream & Create Translation Issues
+
+on:
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  sync-and-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # Needed to create issues
+      pull-requests: write # Needed to create issues
+      repository-projects: write
+
+    steps:
+      - name: 1. Repository checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch everything, including all tags
+
+      - name: 2. Git config
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 3. Upstream fetch
+        run: |
+          UPSTREAM_URL="https://github.com/angular/angular.git" 
+          git remote add upstream $UPSTREAM_URL
+          git fetch upstream --tags
+
+      - name: 4. Find all tags (Local vs Upstream)
+        id: tags
+        run: |
+          # Get latest stable upstream tag
+          LATEST_UPSTREAM_TAG=$(git ls-remote --tags upstream | awk -F/ '{print $3}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          echo "Last upstream tag: $LATEST_UPSTREAM_TAG"
+          echo "upstream_tag=$LATEST_UPSTREAM_TAG" >> $GITHUB_OUTPUT
+
+          # Get latest stable local tag from your fork
+          LATEST_LOCAL_TAG=$(git ls-remote --tags origin | awk -F/ '{print $3}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ -z "$LATEST_LOCAL_TAG" ]; then
+            LATEST_LOCAL_TAG="NO_TAGS"
+          fi
+          echo "Last local tag: $LATEST_LOCAL_TAG"
+          echo "local_tag=$LATEST_LOCAL_TAG" >> $GITHUB_OUTPUT
+
+      - name: 5. Analyze and Notify
+        if: steps.tags.outputs.upstream_tag != steps.tags.outputs.local_tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OLD_TAG: ${{ steps.tags.outputs.local_tag }}
+          NEW_TAG: ${{ steps.tags.outputs.upstream_tag }}
+        run: |
+          if [ "$OLD_TAG" = "NO_TAGS" ]; then
+            echo "First run detected. Listing all relevant files in $NEW_TAG..."
+            ALL_FILES=$(git ls-tree -r --name-only $NEW_TAG)
+          else
+            echo "Analyzing differences between $OLD_TAG and $NEW_TAG..."
+            ALL_FILES=$(git diff --name-only --diff-filter=AM $OLD_TAG $NEW_TAG)
+          fi
+
+          # REGEX for our specific targets
+          REGEX='^(adev/.*\.(md|ts|html)|contributing-docs/.*\.md|packages/.*\.ts|[^/]+\.md)$'
+
+          # Filter files and exclude specs
+          CHANGED_FILES=$(echo "$ALL_FILES" | grep -E "$REGEX" | grep -v '\.spec\.ts$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No relevant files found to translate."
+            exit 0
+          fi
+
+
+          for FILE in $CHANGED_FILES; do
+            ISSUE_TITLE="🔄 Translation $NEW_TAG: \`$FILE\`"
+            
+            # Check for existing open issues
+            EXISTS=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE_TITLE" --json number -q '.[].number')
+            
+            if [ -z "$EXISTS" ]; then
+              if [ "$OLD_TAG" = "NO_TAGS" ]; then
+                ISSUE_BODY="Initial sync for release **$NEW_TAG**. This file needs to be translated.\n\n[View file on GitHub](https://github.com/angular/angular/blob/$NEW_TAG/$FILE)"
+              else
+                ISSUE_BODY="Release **$NEW_TAG** modified this file.\n\nCompare differences against $OLD_TAG and update Italian translation.\n\n[View changes on GitHub](https://github.com/angular/angular/compare/$OLD_TAG...$NEW_TAG)"
+              fi
+
+              gh issue create \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$ISSUE_TITLE" \
+                --body "$ISSUE_BODY" \
+                --label "documentation"
+              
+              echo "✅ Issue would be created for: $FILE"
+
+              # Sleep for 1 second to stay within GitHub API rate limits and avoid being flagged as spam
+              sleep 1
+            else
+              echo "⏭️ Issue already exists for $FILE"
+            fi
+          done
