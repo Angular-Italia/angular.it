@@ -31,33 +31,33 @@ import {OverlayModule} from '@angular/cdk/overlay';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  /** The combobox listbox popup. */
+  /** Il popup della listbox del combobox. */
   listbox = viewChild<Listbox<string>>(Listbox);
 
-  /** The options available in the listbox. */
+  /** Le opzioni disponibili nella listbox. */
   options = viewChildren<Option<string>>(Option);
 
-  /** A reference to the ng aria combobox. */
+  /** Un riferimento al combobox ng aria. */
   combobox = viewChild<Combobox<string>>(Combobox);
 
-  /** The string that is displayed in the combobox. */
+  /** La stringa visualizzata nel combobox. */
   displayValue = computed(() => {
     const values = this.listbox()?.values() || [];
-    return values.length ? values[0] : 'Select a label';
+    return values.length ? values[0] : 'Seleziona un\'etichetta';
   });
 
-  /** The labels that are available for selection. */
-  labels = ['Important', 'Starred', 'Work', 'Personal', 'To Do', 'Later', 'Read', 'Travel'];
+  /** Le etichette disponibili per la selezione. */
+  labels = ['Importante', 'Preferito', 'Lavoro', 'Personale', 'Da fare', 'Più tardi', 'Da leggere', 'Viaggio'];
 
   constructor() {
-    // Scrolls to the active item when the active option changes.
-    // The slight delay here is to ensure animations are done before scrolling.
+    // Scorre all'elemento attivo quando l'opzione attiva cambia.
+    // Il leggero ritardo qui è per assicurarsi che le animazioni siano completate prima dello scorrimento.
     afterRenderEffect(() => {
       const option = this.options().find((opt) => opt.active());
       setTimeout(() => option?.element.scrollIntoView({block: 'nearest'}), 50);
     });
 
-    // Resets the listbox scroll position when the combobox is closed.
+    // Reimposta la posizione di scorrimento della listbox quando il combobox è chiuso.
     afterRenderEffect(() => {
       if (!this.combobox()?.expanded()) {
         setTimeout(() => this.listbox()?.element.scrollTo(0, 0), 150);
